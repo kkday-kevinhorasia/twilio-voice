@@ -5,9 +5,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -29,6 +31,7 @@ import com.twilio.twilio_voice.types.ContextExtension.appName
 import com.twilio.twilio_voice.types.ContextExtension.hasCallPhonePermission
 import com.twilio.twilio_voice.types.ContextExtension.hasManageOwnCallsPermission
 import com.twilio.twilio_voice.types.IntentExtension.getParcelableExtraSafe
+import com.twilio.twilio_voice.types.TVNativeCallEvents
 import com.twilio.twilio_voice.types.TelecomManagerExtension.getPhoneAccountHandle
 import com.twilio.twilio_voice.types.TelecomManagerExtension.hasCallCapableAccount
 import com.twilio.twilio_voice.types.TelecomManagerExtension.canReadPhoneState
@@ -36,6 +39,8 @@ import com.twilio.twilio_voice.types.TelecomManagerExtension.registerPhoneAccoun
 import com.twilio.twilio_voice.types.ValueBundleChanged
 import com.twilio.voice.*
 import com.twilio.voice.Call
+import java.util.Timer
+import kotlin.concurrent.schedule
 
 class TVConnectionService : ConnectionService() {
 
@@ -110,6 +115,11 @@ class TVConnectionService : ConnectionService() {
          * Action used to poll the ConnectionService for the active call handle.
          */
         const val ACTION_ACTIVE_HANDLE: String = "ACTION_ACTIVE_HANDLE"
+
+        /**
+         * Action used to open app when user answer call button on notification
+         */
+        const val ACTION_OPEN_APP: String = "ACTION_OPEN_APP"
         //endregion
 
         //region EXTRA_* Constants
@@ -186,8 +196,8 @@ class TVConnectionService : ConnectionService() {
         fun getActiveCallHandle(): String? {
             if (!hasActiveCalls()) return null
             return activeConnections.entries.firstOrNull { it.value.state == Connection.STATE_ACTIVE }?.key
-                ?: activeConnections.entries.firstOrNull { it.value.state == Connection.STATE_HOLDING }?.key
-                ?: activeConnections.entries.firstOrNull { arrayListOf(Connection.STATE_RINGING, Connection.STATE_DIALING).contains(it.value.state) }?.key
+                    ?: activeConnections.entries.firstOrNull { it.value.state == Connection.STATE_HOLDING }?.key
+                    ?: activeConnections.entries.firstOrNull { arrayListOf(Connection.STATE_RINGING, Connection.STATE_DIALING).contains(it.value.state) }?.key
         }
 
         fun getIncomingCallHandle(): String? {
@@ -254,6 +264,9 @@ class TVConnectionService : ConnectionService() {
                         return@let
                     }
 
+                    // Start show notification
+                    startForegroundService(callInvite)
+
                     val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
                     if (!telecomManager.canReadPhoneState(applicationContext)) {
                         Log.e(TAG, "onCallInvite: Permission to read phone state not granted or requested.")
@@ -273,17 +286,17 @@ class TVConnectionService : ConnectionService() {
                     }
 
                     // Get telecom manager
-                    if (!telecomManager.hasCallCapableAccount(applicationContext, phoneAccountHandle.componentName.className)) {
-                        Log.e(
-                            TAG, "onCallInvite: No registered phone account for PhoneHandle $phoneAccountHandle.\n" +
-                                    "Check the following:\n" +
-                                    "- Have you requested READ_PHONE_STATE permissions\n" +
-                                    "- Have you registered a PhoneAccount \n" +
-                                    "- Have you activated the Calling Account?"
-                        )
-                        callInvite.reject(applicationContext)
-                        return@let
-                    }
+//                    if (!telecomManager.hasCallCapableAccount(applicationContext, phoneAccountHandle.componentName.className)) {
+//                        Log.e(
+//                            TAG, "onCallInvite: No registered phone account for PhoneHandle $phoneAccountHandle.\n" +
+//                                    "Check the following:\n" +
+//                                    "- Have you requested READ_PHONE_STATE permissions\n" +
+//                                    "- Have you registered a PhoneAccount \n" +
+//                                    "- Have you activated the Calling Account?"
+//                        )
+//                        callInvite.reject(applicationContext)
+//                        return@let
+//                    }
 
                     val myBundle: Bundle = Bundle().apply {
                         putParcelable(EXTRA_INCOMING_CALL_INVITE, callInvite)
@@ -302,9 +315,22 @@ class TVConnectionService : ConnectionService() {
 
                     // Add new incoming call to the telecom manager
                     telecomManager.addNewIncomingCall(phoneAccountHandle, extras)
+
+                    // Open app
+                    Intent().apply {
+                        component = ComponentName(
+                                "com.kkday.kkportal",
+                                "com.kkday.kkportal.MainActivity"
+                        )
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        applicationContext.startActivity(this)
+                    }
                 }
 
                 ACTION_ANSWER -> {
+                    // Close notification
+                    stopForegroundService()
+
                     val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getIncomingCallHandle() ?: run {
                         Log.e(TAG, "onStartCommand: ACTION_HANGUP is missing String EXTRA_CALL_HANDLE")
                         return@let
@@ -323,6 +349,9 @@ class TVConnectionService : ConnectionService() {
                 }
 
                 ACTION_HANGUP -> {
+                    // Close notification
+                    stopForegroundService()
+
                     val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
                         Log.e(TAG, "onStartCommand: ACTION_HANGUP is missing String EXTRA_CALL_HANDLE")
                         return@let
@@ -466,6 +495,36 @@ class TVConnectionService : ConnectionService() {
                     sendBroadcastCallHandle(applicationContext, activeCallHandle)
                 }
 
+                ACTION_OPEN_APP -> {
+                    val callInvite = it.getParcelableExtraSafe<CallInvite>(EXTRA_INCOMING_CALL_INVITE) ?: run {
+                        Log.e(TAG, "onStartCommand: 'ACTION_INCOMING_CALL' is missing parcelable 'EXTRA_INCOMING_CALL_INVITE'")
+                        return@let
+                    }
+
+                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getIncomingCallHandle() ?: run {
+                        Log.e(TAG, "onStartCommand: ACTION_HANGUP is missing String EXTRA_CALL_HANDLE")
+                        return@let
+                    }
+
+                    // CAN NOT START ACTIVITY AND SERVICE AT THE SAME TIME!!!
+                    // CHOOSE EITHER ONE
+//                    Intent().apply {
+//                        component = ComponentName(
+//                                "com.kkday.kkportal",
+//                                "com.kkday.kkportal.MainActivity"
+//                        )
+//                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+//                        applicationContext.startActivity(this)
+//                    }
+
+                    Intent(applicationContext, TVBroadcastReceiver::class.java).apply {
+                        action = TVBroadcastReceiver.ACTION_INCOMING_CALL
+                        putExtra(TVBroadcastReceiver.EXTRA_CALL_HANDLE, callInvite.callSid)
+                        putExtra(TVBroadcastReceiver.EXTRA_CALL_INVITE, callInvite)
+                        LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(this)
+                    }
+                }
+
                 else -> {
                     Log.e(TAG, "onStartCommand: unknown action: ${it.action}")
                 }
@@ -516,7 +575,6 @@ class TVConnectionService : ConnectionService() {
         applyParameters(connection, callParams)
         connection.setRinging()
 
-        startForegroundService()
         return connection
     }
 
@@ -564,8 +622,8 @@ class TVConnectionService : ConnectionService() {
 
         // create connect options
         val connectOptions = ConnectOptions.Builder(token)
-            .params(params)
-            .build()
+                .params(params)
+                .build()
 
         // create outgoing connection
         val connection = TVCallConnection(applicationContext)
@@ -602,8 +660,6 @@ class TVConnectionService : ConnectionService() {
         // Apply extras
         connection.extras = request.extras
 
-        startForegroundService()
-
         return connection
     }
 
@@ -627,7 +683,6 @@ class TVConnectionService : ConnectionService() {
             if (activeConnections.containsKey(callSid)) {
                 activeConnections.remove(callSid)
             }
-            stopForegroundService()
             stopSelfSafe()
         }
 
@@ -672,23 +727,11 @@ class TVConnectionService : ConnectionService() {
         }
     }
 
-    override fun onCreateOutgoingConnectionFailed(connectionManagerPhoneAccount: PhoneAccountHandle?, request: ConnectionRequest?) {
-        super.onCreateOutgoingConnectionFailed(connectionManagerPhoneAccount, request)
-        Log.d(TAG, "onCreateOutgoingConnectionFailed")
-        stopForegroundService()
-    }
-
-    override fun onCreateIncomingConnectionFailed(connectionManagerPhoneAccount: PhoneAccountHandle?, request: ConnectionRequest?) {
-        super.onCreateIncomingConnectionFailed(connectionManagerPhoneAccount, request)
-        Log.d(TAG, "onCreateIncomingConnectionFailed")
-        stopForegroundService()
-    }
-
     private fun getOrCreateChannel(): NotificationChannel {
         val id = "${applicationContext.packageName}_calls"
         val name = applicationContext.appName
         val descriptionText = "Active Voice Calls"
-        val importance = NotificationManager.IMPORTANCE_NONE
+        val importance = NotificationManager.IMPORTANCE_HIGH
         val channel = NotificationChannel(id, name, importance).apply {
             description = descriptionText
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
@@ -698,20 +741,76 @@ class TVConnectionService : ConnectionService() {
         return channel
     }
 
-    private fun createNotification(): Notification {
+    private fun createNotification(callInvite: CallInvite): Notification {
         val channel = getOrCreateChannel()
 
-        val intent = Intent(applicationContext, TVConnectionService::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(applicationContext, 0, intent, flag);
+        val flag = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+        val intent = Intent(
+                applicationContext,
+                TVConnectionService::class.java
+        ).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = ACTION_OPEN_APP
+            putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
+            putExtra(EXTRA_CALL_HANDLE, callInvite.callSid)
+        }
+        val acceptCallIntent = Intent(
+                applicationContext,
+                TVConnectionService::class.java
+        ).apply {
+            action = ACTION_ANSWER
+            putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
+            putExtra(EXTRA_CALL_HANDLE, callInvite.callSid)
+        }
+        val declineCallIntent = Intent(
+                applicationContext,
+                TVConnectionService::class.java
+        ).apply {
+            action = ACTION_HANGUP
+            putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
+            putExtra(EXTRA_CALL_HANDLE, callInvite.callSid)
+        }
+
+        val pendingIntent = PendingIntent.getService(
+                applicationContext,
+                0,
+                intent,
+                flag
+        )
+        val acceptCallPendingIntent = PendingIntent.getService(
+                applicationContext,
+                1,
+                acceptCallIntent,
+                flag
+        )
+        val declineCallPendingIntent = PendingIntent.getService(
+                applicationContext,
+                2,
+                declineCallIntent,
+                flag
+        )
+
+        val acceptCallAction = Notification.Action.Builder(
+                Icon.createWithResource(applicationContext, R.drawable.ic_microphone),
+                "Accept",
+                acceptCallPendingIntent
+        ).build()
+        val declineCallAction = Notification.Action.Builder(
+                Icon.createWithResource(applicationContext, R.drawable.ic_microphone),
+                "Decline",
+                declineCallPendingIntent
+        ).build()
 
         return Notification.Builder(this, channel.id).apply {
             setOngoing(true)
-            setContentTitle("Voice Calls")
-            setCategory(Notification.CATEGORY_SERVICE)
-            setContentIntent(pendingIntent)
             setSmallIcon(R.drawable.ic_microphone)
+            setContentTitle("KKportal")
+            setContentText("Call from ${callInvite.from}")
+            setCategory(Notification.CATEGORY_CALL)
+            setFullScreenIntent(pendingIntent, true)
+            addAction(declineCallAction)
+            addAction(acceptCallAction)
         }.build()
     }
 
@@ -721,8 +820,10 @@ class TVConnectionService : ConnectionService() {
     }
 
     /// Source: https://github.com/react-native-webrtc/react-native-callkeep/blob/master/android/src/main/java/io/wazo/callkeep/VoiceConnectionService.java#L295
-    private fun startForegroundService() {
-        val notification = createNotification()
+    private fun startForegroundService(callInvite: CallInvite) {
+        val notification = createNotification(callInvite)
+//        val notificationManager: NotificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+//        notificationManager.notify(SERVICE_TYPE_MICROPHONE, notification)
         Log.d(TAG, "[VoiceConnectionService] Starting foreground service")
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

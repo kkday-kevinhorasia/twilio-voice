@@ -110,9 +110,9 @@ class VoiceFirebaseMessagingService : FirebaseMessagingService(), MessageListene
 //            requiredPermissions += "No `RECORD_AUDIO` permission, VoiceSDK requires this permission. Request this with `requestMicPermission()`"
 //        }
 
-        if(!tm.hasCallCapableAccount(applicationContext, TVConnectionService::class.java.name)) {
-            missingPermissions += "No call capable phone account registered. Request this with `registerPhoneAccount()`"
-        }
+//        if(!tm.hasCallCapableAccount(applicationContext, TVConnectionService::class.java.name)) {
+//            missingPermissions += "No call capable phone account registered. Request this with `registerPhoneAccount()`"
+//        }
 
         // If we have missingPermissions, then we cannot proceed with answering the call.
         if (missingPermissions.isNotEmpty()) {

@@ -1049,10 +1049,10 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
         assert(from.isNotEmpty()) { "From cannot be empty" }
 
         telecomManager?.let { tm ->
-            if (!tm.hasCallCapableAccount(ctx, TVConnectionService::class.java.name)) {
-                Log.e(TAG, "No registered phone account, call `registerPhoneAccount()` first")
-                return false
-            }
+//            if (!tm.hasCallCapableAccount(ctx, TVConnectionService::class.java.name)) {
+//                Log.e(TAG, "No registered phone account, call `registerPhoneAccount()` first")
+//                return false
+//            }
             if (!checkMicrophonePermission()) {
                 Log.e(TAG, "No microphone permission, call `requestMicrophonePermission()` first")
                 return false
