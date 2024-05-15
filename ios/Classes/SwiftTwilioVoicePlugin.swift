@@ -233,7 +233,11 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
             }
         }
         else if flutterCall.method == "answer" {
-            // nuthin
+            self.sendPhoneCallEvents(description: "LOG|answer method invoked", isError: false)
+            if let ci = self.callInvite {
+                self.sendPhoneCallEvents(description: "LOG|answer method invoked: answering call", isError: false)
+                performAnswerCallAction(uuid: ci.uuid)
+            }
         }
         else if flutterCall.method == "unregister" {
             guard let deviceToken = deviceToken else {
@@ -246,12 +250,20 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
             }
             
         }else if flutterCall.method == "hangUp"{
+            self.sendPhoneCallEvents(description: "LOG|hangUp method invoked", isError: false)
+            self.userInitiatedDisconnect = true
             // Hang up on-going/active call
             if (self.call != nil) {
-                self.sendPhoneCallEvents(description: "LOG|hangUp method invoked", isError: false)
-                self.userInitiatedDisconnect = true
+                self.sendPhoneCallEvents(description: "LOG|hangUp method invoked: hanging up call", isError: false)
                 performEndCallAction(uuid: self.call!.uuid!)
                 //self.toggleUIState(isEnabled: false, showCallControl: false)
+            }
+            // Hang up on incoming call
+            if (self.callInvite != nil) {
+                self.sendPhoneCallEvents(description: "LOG|hangUp method invoked: rejecting call", isError: false)
+                if let ci = self.callInvite {
+                    performEndCallAction(uuid: ci.uuid)
+                }
             }
         }else if flutterCall.method == "registerClient"{
             guard let clientId = arguments["id"] as? String, let clientName =  arguments["name"] as? String else {return}
@@ -855,6 +867,19 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
             self.callKitProvider.reportCall(with: uuid, updated: callUpdate)
         }
     }
+
+    func performAnswerCallAction(uuid: UUID) {
+        let answerCallAction = CXAnswerCallAction(call: uuid)
+        let transaction = CXTransaction(action: answerCallAction)
+        
+        callKitCallController.request(transaction) { error in
+            if let error = error {
+                self.sendPhoneCallEvents(description: "Answer Call Failed: \(error.localizedDescription).", isError: true)
+            } else {
+                self.sendPhoneCallEvents(description: "Call Answered", isError: false)
+            }
+        }
+    }
     
     func reportIncomingCall(from: String, uuid: UUID) {
         let callHandle = CXHandle(type: .generic, value: from)
@@ -878,7 +903,6 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     }
     
     func performEndCallAction(uuid: UUID) {
-        
         self.sendPhoneCallEvents(description: "LOG|performEndCallAction method invoked", isError: false)
         
         let endCallAction = CXEndCallAction(call: uuid)
