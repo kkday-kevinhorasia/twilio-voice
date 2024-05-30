@@ -97,6 +97,8 @@ open class TVCallConnection(
     private var onCallStateListener: CompletionHandler<Call.State>? = null
     open val callDirection = CallDirection.OUTGOING
     private var callParams: TVParameters? = null
+    private var isMuted: Boolean = false
+
 
     init {
         context = ctx
@@ -346,10 +348,11 @@ open class TVCallConnection(
     @Deprecated("Deprecated in Java")
     override fun onCallAudioStateChanged(state: CallAudioState?) {
         Log.d(TAG, "onCallAudioStateChanged: onCallAudioStateChanged ${state.toString()}")
-        super.onCallAudioStateChanged(state)
+        val newState = state?.copyWith(isMuted)
+        super.onCallAudioStateChanged(newState)
 
         Intent(TVBroadcastReceiver.ACTION_AUDIO_STATE).apply {
-            putExtra(TVBroadcastReceiver.EXTRA_AUDIO_STATE, state)
+            putExtra(TVBroadcastReceiver.EXTRA_AUDIO_STATE, newState)
         }.also {
             sendBroadcast(context, it)
         }
@@ -412,10 +415,11 @@ open class TVCallConnection(
     @Suppress("DEPRECATION")
     fun toggleMute(newState: Boolean) {
         //TODO(cybex-dev) implement API 34 endpoint & mute state change listeners
+        isMuted = newState
         twilioCall?.let {
             it.mute(newState)
             callAudioState?.let { a ->
-                val newAudioRoute = a.copyWith(newState)
+                val newAudioRoute = a.copyWith(isMuted)
                 onCallAudioStateChanged(newAudioRoute)
             } ?: run {
                 Log.e(TAG, "toggleMute: Unable to toggle mute, callAudioState is null")
