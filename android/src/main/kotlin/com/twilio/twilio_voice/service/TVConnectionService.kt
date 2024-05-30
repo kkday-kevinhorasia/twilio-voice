@@ -115,12 +115,6 @@ class TVConnectionService : ConnectionService() {
          */
         const val ACTION_ACTIVE_HANDLE: String = "ACTION_ACTIVE_HANDLE"
 
-        /**
-         * Action used to open app when user answer call button on notification
-         */
-        const val ACTION_OPEN_APP: String = "ACTION_OPEN_APP"
-        //endregion
-
         //region EXTRA_* Constants
         /**
          * Extra used with [ACTION_SEND_DIGITS] to send digits to the [TVConnection] active call.
@@ -537,12 +531,8 @@ class TVConnectionService : ConnectionService() {
 
             // Open app
             Intent().apply {
-                component = ComponentName(
-                    "com.kkday.kkportal",
-                    "com.kkday.kkportal.MainActivity"
-                )
-                action = ACTION_INCOMING_CALL
-                putExtra("EXTRA_CALL_INVITE", ci.from)
+                action = Intent.ACTION_CALL
+                putExtra("EXTRA_CALL_FROM", ci.from)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_NO_HISTORY)
                 applicationContext.startActivity(this)
             }

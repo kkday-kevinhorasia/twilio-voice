@@ -80,12 +80,64 @@ notifications:
 
 ```xml
 <Application>
- .....
- <service
- android:name="com.twilio.twilio_voice.fcm.VoiceFirebaseMessagingService"
- android:stopWithTask="false">
-<intent-filter> <action android:name="com.google.firebase.MESSAGING_EVENT" />
-</intent-filter> </service>
+ ...
+<service
+    android:name="com.twilio.twilio_voice.fcm.VoiceFirebaseMessagingService"
+    android:stopWithTask="false">
+    <intent-filter> 
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+    </intent-filter> 
+</service>
+```
+
+add in `AndroidManifest.xml` to receive call intent
+
+```xml
+<activity
+    ...
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+    </intent-filter>
+
+    <!-- Added -->
+    <intent-filter>
+        <action android:name="android.intent.action.CALL" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+</activity>
+```
+
+add in `AndroidManifest.xml` to display flutter screen
+[Doc](https://docs.flutter.dev/add-to-app/android/add-flutter-screen)
+
+```xml
+<activity
+    android:name="io.flutter.embedding.android.FlutterActivity"
+    android:theme="@style/LaunchTheme"
+    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+    android:hardwareAccelerated="true"
+    android:windowSoftInputMode="adjustResize" />
+```
+
+lastly add in `MainActivity.kt` to open flutter screen
+
+```kotlin
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+
+    if (intent.action === Intent.ACTION_CALL) {
+        val caller = intent.getStringExtra("EXTRA_CALL_FROM")
+
+        startActivity(
+            withNewEngine()
+                // e.g. `voip-call` is flutter screen route name
+                // to pass parameter use query parameter
+                .initialRoute("voip-call?caller=$caller") 
+                .build(this)
+        )
+    }
+}
 ```
 
 #### Phone Account
