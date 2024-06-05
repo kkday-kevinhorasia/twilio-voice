@@ -63,7 +63,7 @@ iOS app for VOIP, etc.
 ### iOS Setup
 
 To customize the icon displayed on a CallKit call, Open XCode and add a png icon named '
-callkit_icon' to your assets.xassets folder
+CallKitIcon' to your Assets.xassets folder
 
 see [[Notes]](https://github.com/diegogarciar/twilio_voice/blob/master/NOTES.md#ios--macos) for more information
 

@@ -8,7 +8,7 @@ import UserNotifications
 
 public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHandler, PKPushRegistryDelegate, NotificationDelegate, CallDelegate, AVAudioPlayerDelegate, CXProviderDelegate {
     
-    final let defaultCallKitIcon = "callkit_icon"
+    final let defaultCallKitIcon = "CallKitIcon"
     var callKitIcon: String?
 
     var _result: FlutterResult?
