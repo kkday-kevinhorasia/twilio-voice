@@ -959,6 +959,7 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
         context?.let { ctx ->
             Intent(ctx, TVConnectionService::class.java).apply {
                 action = TVConnectionService.ACTION_ANSWER
+                putExtra(TVConnectionService.EXTRA_CALL_HANDLE, callSid)
                 ctx.startService(this)
             }
         } ?: run {
@@ -1832,7 +1833,8 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
                     Log.e(TAG, "No 'EXTRA_MESSAGE' provided or invalid type")
                     return
                 }
-                logEvent("Call Error: ${code}, $message");
+                logEvent("Call Error: ${code}, $message")
+                logEvent("", "Call Ended")
             }
 
             TVNativeCallEvents.EVENT_RECONNECTING -> {
