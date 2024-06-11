@@ -775,9 +775,9 @@ class TVConnectionService : ConnectionService() {
 
         return Notification.Builder(this, channel.id).apply {
             setOngoing(true)
-            setSmallIcon(R.drawable.ic_microphone)
+            setSmallIcon(R.drawable.ic_app_logo)
             setContentTitle("KKportal")
-            setContentText("Call from ${callInvite.from}")
+            setContentText(callInvite.from)
             setCategory(Notification.CATEGORY_CALL)
             setFullScreenIntent(pendingIntent, true)
             addAction(declineCallAction)
