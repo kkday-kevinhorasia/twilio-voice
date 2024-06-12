@@ -33,6 +33,7 @@ import com.twilio.twilio_voice.types.ContextExtension.appName
 import com.twilio.twilio_voice.types.ContextExtension.hasCallPhonePermission
 import com.twilio.twilio_voice.types.ContextExtension.hasManageOwnCallsPermission
 import com.twilio.twilio_voice.types.IntentExtension.getParcelableExtraSafe
+import com.twilio.twilio_voice.types.TVNativeCallEvents
 import com.twilio.twilio_voice.types.TelecomManagerExtension.canReadPhoneState
 import com.twilio.twilio_voice.types.TelecomManagerExtension.getPhoneAccountHandle
 import com.twilio.twilio_voice.types.TelecomManagerExtension.hasCallCapableAccount
@@ -640,6 +641,11 @@ class TVConnectionService : ConnectionService() {
             sendBroadcastEvent(applicationContext, event ?: "", callSid, extra)
             // This is a temporary solution since `isOnCall` returns true when there is an active ConnectionService, regardless of the source app. This also applies to SIM/Telecom calls.
             sendBroadcastCallHandle(applicationContext, extra?.getString(TVBroadcastReceiver.EXTRA_CALL_HANDLE))
+            // Stop notification when call connect failed
+            if (TVNativeCallEvents.EVENT_CONNECT_FAILURE == event) {
+                stopForegroundService()
+                stopSelfSafe()
+            }
         }
         val onDisconnect: CompletionHandler<DisconnectCause> = CompletionHandler {
             if (activeConnections.containsKey(callSid)) {
