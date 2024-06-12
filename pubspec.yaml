@@ -10,10 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_web_plugins:
-    sdk: flutter
   plugin_platform_interface: ^2.1.4
-  js: ^0.6.5
 
 dev_dependencies:
   flutter_lints: ^2.0.2
@@ -35,14 +32,6 @@ flutter:
         package: com.twilio.twilio_voice
         pluginClass: TwilioVoicePlugin
       ios:
-        pluginClass: TwilioVoicePlugin
-      web:
-        # As a temporary measure, the web implementation of a plugin is defined in
-        # `twilio_voice_web`, but this will change soon with the migration to a federated
-        # plugin structure.
-        pluginClass: TwilioVoiceWeb
-        fileName: _internal/twilio_voice_web.dart
-      macos:
         pluginClass: TwilioVoicePlugin
 
   # To add assets to your plugin package, add an assets section, like this:
