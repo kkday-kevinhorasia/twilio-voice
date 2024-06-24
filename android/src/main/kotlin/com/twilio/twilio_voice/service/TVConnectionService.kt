@@ -310,12 +310,12 @@ class TVConnectionService : ConnectionService() {
 
                 ACTION_ANSWER -> {
                     val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getIncomingCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_HANGUP is missing String EXTRA_CALL_HANDLE")
+                        Log.e(TAG, "onStartCommand: ACTION_ANSWER is missing String EXTRA_CALL_HANDLE")
                         return@let
                     }
 
                     val connection = getConnection(callHandle) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_HANGUP] could not find connection for callHandle: $callHandle")
+                        Log.e(TAG, "onStartCommand: [ACTION_ANSWER] could not find connection for callHandle: $callHandle")
                         return@let
                     }
 
@@ -645,6 +645,10 @@ class TVConnectionService : ConnectionService() {
             if (TVNativeCallEvents.EVENT_CONNECT_FAILURE == event) {
                 stopForegroundService()
                 stopSelfSafe()
+            }
+            // Stop notification when call is connected
+            if (TVNativeCallEvents.EVENT_CONNECTED == event) {
+                stopForegroundService()
             }
         }
         val onDisconnect: CompletionHandler<DisconnectCause> = CompletionHandler {
