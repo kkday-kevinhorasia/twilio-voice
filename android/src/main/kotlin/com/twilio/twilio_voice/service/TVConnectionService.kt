@@ -532,7 +532,7 @@ class TVConnectionService : ConnectionService() {
 
             // Open app
             Intent().apply {
-                action = Intent.ACTION_CALL
+                action = "kkportal.intent.action.CALL"
                 putExtra("EXTRA_CALL_FROM", ci.from)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_NO_HISTORY)
                 applicationContext.startActivity(this)
