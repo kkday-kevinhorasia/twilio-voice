@@ -678,7 +678,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     public func callDidDisconnect(call: Call, error: Error?) {
         self.sendPhoneCallEvents(description: "Call Ended", isError: false)
         if let error = error {
-            self.sendPhoneCallEvents(description: "Call Failed: \(error.localizedDescription)", isError: true)
+            self.sendPhoneCallEvents(description: "LOG|Call Failed: \(error.localizedDescription)", isError: true)
         }
         
         if !self.userInitiatedDisconnect {
@@ -872,9 +872,9 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         
         callKitCallController.request(transaction) { error in
             if let error = error {
-                self.sendPhoneCallEvents(description: "Answer Call Failed: \(error.localizedDescription).", isError: true)
+                self.sendPhoneCallEvents(description: "LOG|Answer Call Failed: \(error.localizedDescription).", isError: true)
             } else {
-                self.sendPhoneCallEvents(description: "Call Answered", isError: false)
+                self.sendPhoneCallEvents(description: "LOG|Call Answered", isError: false)
             }
         }
     }
@@ -908,7 +908,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         
         callKitCallController.request(transaction) { error in
             if let error = error {
-                self.sendPhoneCallEvents(description: "End Call Failed: \(error.localizedDescription).", isError: true)
+                self.sendPhoneCallEvents(description: "LOG|End Call Failed: \(error.localizedDescription).", isError: true)
             } else {
                 self.sendPhoneCallEvents(description: "Call Ended", isError: false)
             }
