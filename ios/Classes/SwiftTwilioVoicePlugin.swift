@@ -548,7 +548,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         }
     }
     
-    // MARK: TVONotificaitonDelegate
+    // MARK: TVONotificationDelegate
     public func callInviteReceived(callInvite: CallInvite) {
         self.sendPhoneCallEvents(description: "LOG|callInviteReceived:", isError: false)
         
@@ -559,12 +559,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
          */
         UserDefaults.standard.set(Date(), forKey: kCachedBindingDate)
         
-        var from:String = callInvite.from ?? defaultCaller
-        from = from.replacingOccurrences(of: "client:", with: "")
-        
-        self.sendPhoneCallEvents(description: "Ringing|\(from)|\(callInvite.to)|Incoming\(formatCustomParams(params: callInvite.customParameters))", isError: false)
-        reportIncomingCall(from: from, uuid: callInvite.uuid)
-        self.callInvite = callInvite
+        reportIncomingCall(callInvite: callInvite)
     }
     
     func formatCustomParams(params: [String:Any]?)->String{
@@ -879,9 +874,12 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         }
     }
     
-    func reportIncomingCall(from: String, uuid: UUID) {
+    func reportIncomingCall(callInvite: CallInvite) {
+        self.callInvite = callInvite
+        var from = callInvite.from ?? defaultCaller
+        from = from.replacingOccurrences(of: "client:", with: "")
+
         let callHandle = CXHandle(type: .generic, value: from)
-        
         let callUpdate = CXCallUpdate()
         callUpdate.remoteHandle = callHandle
         callUpdate.localizedCallerName = from ?? self.clients["defaultCaller"] ?? defaultCaller
@@ -891,11 +889,12 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         callUpdate.supportsUngrouping = false
         callUpdate.hasVideo = false
         
-        callKitProvider.reportNewIncomingCall(with: uuid, update: callUpdate) { error in
+        callKitProvider.reportNewIncomingCall(with: callInvite.uuid, update: callUpdate) { error in
             if let error = error {
                 self.sendPhoneCallEvents(description: "LOG|Failed to report incoming call successfully: \(error.localizedDescription).", isError: false)
             } else {
                 self.sendPhoneCallEvents(description: "LOG|Incoming call successfully reported.", isError: false)
+                self.sendPhoneCallEvents(description: "Ringing|\(from)|\(callInvite.to)|Incoming\(self.formatCustomParams(params: callInvite.customParameters))", isError: false)
             }
         }
     }
