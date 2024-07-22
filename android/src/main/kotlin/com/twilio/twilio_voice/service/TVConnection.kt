@@ -97,8 +97,6 @@ open class TVCallConnection(
     private var onCallStateListener: CompletionHandler<Call.State>? = null
     open val callDirection = CallDirection.OUTGOING
     private var callParams: TVParameters? = null
-    private var isMuted: Boolean = false
-
 
     init {
         context = ctx
@@ -279,9 +277,8 @@ open class TVCallConnection(
         Log.i(TAG, "onHold: onHold")
         twilioCall?.hold(true)
         setOnHold()
-        onAction?.onChange(TVNativeCallActions.ACTION_HOLD, null)
 
-        Intent(TVBroadcastReceiver.ACTION_CALL_STATE).apply {
+        Intent(TVBroadcastReceiver.ACTION_HOLD_STATE).apply {
             putExtra(TVBroadcastReceiver.EXTRA_HOLD_STATE, true)
         }.also {
             sendBroadcast(context, it)
@@ -293,9 +290,8 @@ open class TVCallConnection(
         Log.i(TAG, "onUnhold: onUnhold")
         twilioCall?.hold(false)
         setActive()
-        onAction?.onChange(TVNativeCallActions.ACTION_UNHOLD, null)
 
-        Intent(TVBroadcastReceiver.ACTION_CALL_STATE).apply {
+        Intent(TVBroadcastReceiver.ACTION_HOLD_STATE).apply {
             putExtra(TVBroadcastReceiver.EXTRA_HOLD_STATE, false)
         }.also {
             sendBroadcast(context, it)
@@ -319,7 +315,6 @@ open class TVCallConnection(
             set.forEach {
                 Log.i(TAG, "extra: $it")
             }
-//            setCallerDisplayName()
         }
     }
 
@@ -348,54 +343,30 @@ open class TVCallConnection(
     @Deprecated("Deprecated in Java")
     override fun onCallAudioStateChanged(state: CallAudioState?) {
         Log.d(TAG, "onCallAudioStateChanged: onCallAudioStateChanged ${state.toString()}")
-        val newState = state?.copyWith(isMuted)
-        super.onCallAudioStateChanged(newState)
+        super.onCallAudioStateChanged(state)
 
-        Intent(TVBroadcastReceiver.ACTION_AUDIO_STATE).apply {
-            putExtra(TVBroadcastReceiver.EXTRA_AUDIO_STATE, newState)
-        }.also {
-            sendBroadcast(context, it)
+        when (state?.route) {
+            CallAudioState.ROUTE_EARPIECE, CallAudioState.ROUTE_WIRED_OR_EARPIECE -> {
+                Intent(TVBroadcastReceiver.ACTION_SPEAKER_STATE).apply {
+                    putExtra(TVBroadcastReceiver.EXTRA_SPEAKER_STATE, false)
+                }.also {
+                    sendBroadcast(context, it)
+                }
+            }
+            CallAudioState.ROUTE_SPEAKER -> {
+                Intent(TVBroadcastReceiver.ACTION_SPEAKER_STATE).apply {
+                    putExtra(TVBroadcastReceiver.EXTRA_SPEAKER_STATE, true)
+                }.also {
+                    sendBroadcast(context, it)
+                }
+            }
+            else -> {}
         }
     }
 
     override fun onStateChanged(state: Int) {
         super.onStateChanged(state)
         Log.d(TAG, "onStateChanged: $state")
-//        when (state) {
-//            STATE_ACTIVE -> {
-//                Log.d(TAG, "onStateChanged: STATE_ACTIVE")
-//                setActive()
-//            }
-//
-//            STATE_DIALING -> {
-//                Log.d(TAG, "onStateChanged: STATE_DIALING")
-//                setDialing()
-//            }
-//
-//            STATE_DISCONNECTED -> {
-//                Log.d(TAG, "onStateChanged: STATE_DISCONNECTED")
-//                destroy()
-//            }
-//
-//            STATE_HOLDING -> {
-//                Log.d(TAG, "onStateChanged: STATE_HOLDING")
-//                setOnHold()
-//            }
-//
-//            STATE_NEW -> {
-//                Log.d(TAG, "onStateChanged: STATE_NEW")
-//                setRinging()
-//            }
-//
-//            STATE_RINGING -> {
-//                Log.d(TAG, "onStateChanged: STATE_RINGING")
-//                setRinging()
-//            }
-//
-//            else -> {
-//                Log.d(TAG, "onStateChanged: STATE_UNKNOWN")
-//            }
-//        }
     }
 
     fun toggleHold(newState: Boolean) {
@@ -415,14 +386,12 @@ open class TVCallConnection(
     @Suppress("DEPRECATION")
     fun toggleMute(newState: Boolean) {
         //TODO(cybex-dev) implement API 34 endpoint & mute state change listeners
-        isMuted = newState
-        twilioCall?.let {
-            it.mute(newState)
-            callAudioState?.let { a ->
-                val newAudioRoute = a.copyWith(isMuted)
-                onCallAudioStateChanged(newAudioRoute)
-            } ?: run {
-                Log.e(TAG, "toggleMute: Unable to toggle mute, callAudioState is null")
+        twilioCall?.let { call ->
+            call.mute(newState)
+            Intent(TVBroadcastReceiver.ACTION_MUTE_STATE).apply {
+                putExtra(TVBroadcastReceiver.EXTRA_MUTE_STATE, newState)
+            }.also {
+                sendBroadcast(context, it)
             }
         } ?: run {
             Log.e(TAG, "toggleMute: Unable to toggle mute, active call is null")

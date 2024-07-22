@@ -1300,19 +1300,18 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
         if (!isReceiverRegistered) {
             Log.d(TAG, "registerReceiver")
             val intentFilter = IntentFilter().apply {
-                addAction(TVBroadcastReceiver.ACTION_AUDIO_STATE)
+                addAction(TVBroadcastReceiver.ACTION_MUTE_STATE)
+                addAction(TVBroadcastReceiver.ACTION_HOLD_STATE)
+                addAction(TVBroadcastReceiver.ACTION_SPEAKER_STATE)
                 addAction(TVBroadcastReceiver.ACTION_ACTIVE_CALL_CHANGED)
                 addAction(TVBroadcastReceiver.ACTION_INCOMING_CALL)
                 addAction(TVBroadcastReceiver.ACTION_CALL_ENDED)
-                addAction(TVBroadcastReceiver.ACTION_CALL_STATE)
                 addAction(TVBroadcastReceiver.ACTION_INCOMING_CALL_IGNORED)
 
                 addAction(TVNativeCallActions.ACTION_ANSWERED)
                 addAction(TVNativeCallActions.ACTION_REJECTED)
                 addAction(TVNativeCallActions.ACTION_DTMF)
                 addAction(TVNativeCallActions.ACTION_ABORT)
-                addAction(TVNativeCallActions.ACTION_HOLD)
-                addAction(TVNativeCallActions.ACTION_UNHOLD)
 
                 addAction(TVNativeCallEvents.EVENT_CONNECTING)
                 addAction(TVNativeCallEvents.EVENT_INCOMING)
@@ -1606,36 +1605,25 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
     //region LocalBroadcastReceiver
     fun handleBroadcastIntent(intent: Intent) {
         when (intent.action) {
-            TVBroadcastReceiver.ACTION_AUDIO_STATE -> {
-                val callAudioState: CallAudioState =
-                    intent.getParcelableExtraSafe(TVBroadcastReceiver.EXTRA_AUDIO_STATE) ?: run {
-                        Log.e(
-                            TAG,
-                            "handleBroadcastIntent: No 'EXTRA_AUDIO_STATE' provided or invalid type, make sure to provide a [CallAudioState]"
-                        )
-                        return
-                    }
+            TVBroadcastReceiver.ACTION_MUTE_STATE -> {
+                isMuted = intent.getBooleanExtra(TVBroadcastReceiver.EXTRA_MUTE_STATE, isMuted).also {
+                    Log.d(TAG, "handleBroadcastIntent: Call muted $it")
+                    logEvent("", if (it) "Mute" else "Unmute")
+                }
+            }
 
-                isMuted =
-                    if (isMuted == callAudioState.isMuted) isMuted else callAudioState.isMuted.also {
-                        logEvent("", if (it) "Mute" else "Unmute")
-                    }
-                val speakerRouteSelected = callAudioState.route == CallAudioState.ROUTE_SPEAKER
-                isSpeakerOn =
-                    if (isSpeakerOn == speakerRouteSelected) isSpeakerOn else speakerRouteSelected.also {
-                        logEvent("", if (it) "Speaker On" else "Speaker Off")
-                    }
-                val bluetoothRouteSelected = callAudioState.route == CallAudioState.ROUTE_BLUETOOTH
-                isBluetoothOn =
-                    if (isBluetoothOn == bluetoothRouteSelected) isBluetoothOn else bluetoothRouteSelected.also {
-                        logEvent("", if (it) "Bluetooth On" else "Bluetooth Off")
-                    }
-                Log.d(
-                    TAG,
-                    "handleBroadcastIntent: Audio state changed to ${
-                        CallAudioState.audioRouteToString(callAudioState.route)
-                    }"
-                )
+            TVBroadcastReceiver.ACTION_HOLD_STATE -> {
+                isHolding = intent.getBooleanExtra(TVBroadcastReceiver.EXTRA_HOLD_STATE, isHolding).also {
+                    Log.d(TAG, "handleBroadcastIntent: Call muted $it")
+                    logEvent("", if (it) "Hold" else "Unhold")
+                }
+            }
+
+            TVBroadcastReceiver.ACTION_SPEAKER_STATE -> {
+                isSpeakerOn = intent.getBooleanExtra(TVBroadcastReceiver.EXTRA_SPEAKER_STATE, isSpeakerOn).also {
+                    Log.d(TAG, "handleBroadcastIntent: Call speaker $it")
+                    logEvent("", if (it) "Speaker On" else "Speaker Off")
+                }
             }
 
             TVBroadcastReceiver.ACTION_ACTIVE_CALL_CHANGED -> {
@@ -1685,16 +1673,6 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
 //                callSid = null
                 Log.d(TAG, "handleBroadcastIntent: Call ended $callHandle")
                 logEvent("", "Call ended")
-            }
-
-            TVBroadcastReceiver.ACTION_CALL_STATE -> {
-//                isMuted = intent.getBooleanExtra(TVBroadcastReceiver.EXTRA_MUTE_STATE, isMuted).also {
-//                    Log.d(TAG, "handleBroadcastIntent: Call muted $it")
-//                }
-                isHolding =
-                    intent.getBooleanExtra(TVBroadcastReceiver.EXTRA_HOLD_STATE, isHolding).also {
-                        Log.d(TAG, "handleBroadcastIntent: Call holding $it")
-                    }
             }
 
             TVBroadcastReceiver.ACTION_INCOMING_CALL_IGNORED -> {
@@ -1760,16 +1738,6 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
             TVNativeCallActions.ACTION_ABORT -> {
                 Log.d(TAG, "handleBroadcastIntent: Abort")
                 logEvent("", "Call Ended")
-            }
-
-            TVNativeCallActions.ACTION_HOLD -> {
-                Log.d(TAG, "handleBroadcastIntent: Hold")
-                logEvent("", "Hold")
-            }
-
-            TVNativeCallActions.ACTION_UNHOLD -> {
-                Log.d(TAG, "handleBroadcastIntent: Unhold")
-                logEvent("", "Unhold")
             }
 
             TVNativeCallEvents.EVENT_CONNECTING -> {

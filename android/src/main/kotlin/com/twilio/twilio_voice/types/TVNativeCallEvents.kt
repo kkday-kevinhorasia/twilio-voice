@@ -84,18 +84,6 @@ object TVNativeCallActions {
     val ACTION_ABORT: String = "com.twilio.ACTION_ABORT"
 
     /**
-     * Action when user placed a call on hold
-     */
-    val ACTION_HOLD: String = "com.twilio.ACTION_HOLD"
-
-    /**
-     * Action when user has removed a call from hold
-     */
-    val ACTION_UNHOLD: String = "com.twilio.ACTION_UNHOLD"
-
-//    val ACTION_MUTE = "ACTION_MUTE"
-
-    /**
      * (optional) Extra sent with [ACTION_REJECTED]
      */
     val EXTRA_REJECT_REASON: String = "EXTRA_REJECT_REASON"

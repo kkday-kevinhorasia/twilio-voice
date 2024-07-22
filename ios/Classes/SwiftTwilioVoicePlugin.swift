@@ -659,15 +659,14 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
             
             self.callKitProvider.reportCall(with: call.uuid!, endedAt: Date(), reason: reason)
         }
-        
+
         callDisconnected()
     }
     
     func callDisconnected() {
         self.sendPhoneCallEvents(description: "LOG|Call Disconnected", isError: false)
+
         if (self.call != nil) {
-            
-            self.sendPhoneCallEvents(description: "LOG|Setting call to nil", isError: false)
             self.call = nil
         }
         if (self.callInvite != nil) {
@@ -676,7 +675,6 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         
         self.callOutgoing = false
         self.userInitiatedDisconnect = false
-        
     }
     
     func isSpeakerOn() -> Bool {
@@ -700,6 +698,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
 
     // MARK: AVAudioSession
     func toggleAudioRoute(toSpeaker: Bool) {
+        self.sendPhoneCallEvents(description: "LOG|toggleAudioRoute method invoked", isError: false)
         // The mode set by the Voice SDK is "VoiceChat" so the default audio route is the built-in receiver. Use port override to switch the route.
         audioDevice.block = {
             DefaultAudioDevice.DefaultAVAudioSessionConfigurationBlock()
@@ -716,16 +715,24 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
         audioDevice.block()
     }
 
-    private func setupAudioSession() {
+    private func setupAudioSession(on: Bool) {
         // Configure the audio session
         let sessionInstance = AVAudioSession.sharedInstance()
 
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(self.handleRouteChange(_:)),
-            name: AVAudioSession.routeChangeNotification,
-            object: sessionInstance
-        )
+        if (on) {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handleRouteChange(_:)),
+                name: AVAudioSession.routeChangeNotification,
+                object: sessionInstance
+            )
+        } else {
+            NotificationCenter.default.removeObserver(
+                self,
+                name: AVAudioSession.routeChangeNotification,
+                object: sessionInstance
+            )
+        }
     }
 
     @objc func handleRouteChange(_ notification: Notification) {
@@ -774,7 +781,6 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         self.sendPhoneCallEvents(description: "LOG|provider:didActivateAudioSession:", isError: false)
         audioDevice.isEnabled = true
-        self.setupAudioSession()
     }
     
     public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
@@ -788,6 +794,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         self.sendPhoneCallEvents(description: "LOG|provider:performStartCallAction:", isError: false)
+        self.setupAudioSession(on: true)
         
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
         
@@ -804,6 +811,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         self.sendPhoneCallEvents(description: "LOG|provider:performAnswerCallAction:", isError: false)
+        self.setupAudioSession(on: true)
         
         self.performAnswerVoiceCall(uuid: action.callUUID) { (success) in
             if success {
@@ -818,6 +826,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         self.sendPhoneCallEvents(description: "LOG|provider:performEndCallAction:", isError: false)
+        self.setupAudioSession(on: false)
         
         if (self.callInvite != nil) {
             self.sendPhoneCallEvents(description: "LOG|provider:performEndCallAction: rejecting call", isError: false)
