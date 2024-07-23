@@ -235,6 +235,7 @@ open class TVCallConnection(
     override fun onDisconnected(call: Call, reason: CallException?) {
         // TODO run below only if we did NOT ended call i.e. remove disconnect from other client
         Log.d(TAG, "onDisconnected: onDisconnected, reason: ${reason?.message}.\nException: ${reason.toString()}")
+        initCallAudioState()
         twilioCall = null
         onCallStateListener?.withValue(call.state)
         onEvent?.onChange(TVNativeCallEvents.EVENT_DISCONNECTED_REMOTE, Bundle().apply {
@@ -249,6 +250,7 @@ open class TVCallConnection(
     override fun onAbort() {
         super.onAbort()
         Log.i(TAG, "onAbort: onAbort")
+        initCallAudioState()
         twilioCall?.disconnect()
         setDisconnected(DisconnectCause(DisconnectCause.CANCELED))
         onAction?.onChange(TVNativeCallActions.ACTION_ABORT, null)
@@ -259,6 +261,7 @@ open class TVCallConnection(
     override fun onDisconnect() {
         super.onDisconnect()
         Log.i(TAG, "onDisconnect: onDisconnect")
+        initCallAudioState()
         twilioCall?.disconnect()
         setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
         this.onDisconnected?.withValue(DisconnectCause(DisconnectCause.LOCAL))
@@ -326,6 +329,7 @@ open class TVCallConnection(
     override fun onReject(rejectReason: Int) {
         Log.d(TAG, "onReject: onReject $rejectReason")
         super.onReject(rejectReason)
+        initCallAudioState()
         twilioCall?.disconnect()
         onAction?.onChange(TVNativeCallActions.ACTION_REJECTED, null)
     }
@@ -333,6 +337,7 @@ open class TVCallConnection(
     override fun onReject(replyMessage: String?) {
         Log.d(TAG, "onReject: onReject $replyMessage")
         super.onReject(replyMessage)
+        initCallAudioState()
         twilioCall?.disconnect()
         onAction?.onChange(TVNativeCallActions.ACTION_REJECTED, Bundle().apply {
             putString(TVNativeCallActions.EXTRA_REJECT_REASON, replyMessage)
@@ -367,6 +372,12 @@ open class TVCallConnection(
     override fun onStateChanged(state: Int) {
         super.onStateChanged(state)
         Log.d(TAG, "onStateChanged: $state")
+    }
+
+    fun initCallAudioState() {
+        toggleHold(false);
+        toggleSpeaker(false)
+        toggleMute(false)
     }
 
     fun toggleHold(newState: Boolean) {

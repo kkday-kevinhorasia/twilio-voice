@@ -148,21 +148,6 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
     }
     //endregion
 
-//    //region TwilioVoice RegistrationListeners
-//    override fun onRegistered(accessToken: String, fcmToken: String) {
-//        Log.d(TAG, "Successfully registered FCM $fcmToken")
-//    }
-//
-//    override fun onUnregistered(accessToken: String?, fcmToken: String?) {
-//        Log.d(TAG, "Successfully un-registered FCM $fcmToken")
-//    }
-//
-//    override fun onError(registrationException: RegistrationException, accessToken: String, fcmToken: String) {
-//        val message = String.format("(un)Registration Error: %d, %s", registrationException.errorCode, registrationException.message)
-//        Log.e(TAG, message)
-//    }
-//    //endregion
-
     //region TwilioVoice Call.Listeners
     private fun callListener(): Call.Listener {
         return object : Call.Listener {
@@ -256,15 +241,7 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
                 Log.d(TAG, "Microphone permission not granted")
                 logEventPermission("Microphone", false)
             }
-        } /*else if (requestCode == REQUEST_CODE_TELECOM) {
-            if (permissions.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "Telecom permission granted")
-                logEventPermission("Telecom", true)
-            } else {
-                Log.d(TAG, "Telecom permission not granted")
-                logEventPermission("Telecom", false)
-            }
-        } */ else if (requestCode == REQUEST_CODE_READ_PHONE_NUMBERS) {
+        } else if (requestCode == REQUEST_CODE_READ_PHONE_NUMBERS) {
             if (permissions.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Log.d(TAG, "Read Phone Numbers permission granted")
                 logEventPermission("Read Phone Numbers", true)
@@ -979,18 +956,7 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
         }
     }
 
-    private fun isOnCall(/*ctx: Context, tm: TelecomManager*/): Boolean {
-//        if (!checkReadPhoneStatePermission()) {
-//            Log.e(
-//                TAG,
-//                "No read phone state permission, call `requestReadPhoneStatePermission()` first"
-//            )
-//            return false
-//        }
-//        if (callSid == null) {
-//            Log.d(TAG, "isOnCall: CallSid is null.")
-//        }
-//        return tm.isOnCall(ctx)
+    private fun isOnCall(): Boolean {
         return TVConnectionService.hasActiveCalls()
     }
 
@@ -1831,35 +1797,4 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
             }
         }
     }
-
-//    override fun onConnectFailure(call: Call, callException: CallException) {
-//        Log.e(TAG, "onConnectFailure: ${callException.message}")
-//        logEvent("onConnectFailure", callException.message ?: "")
-//    }
-//
-//    override fun onRinging(call: Call) {
-//        Log.d(TAG, "onRinging")
-//        logEvent("onRinging")
-//    }
-//
-//    override fun onConnected(call: Call) {
-//        Log.d(TAG, "onConnected")
-//        logEvent("onConnected")
-//    }
-//
-//    override fun onReconnecting(call: Call, callException: CallException) {
-//        Log.d(TAG, "onReconnecting")
-//        logEvent("onReconnecting")
-//    }
-//
-//    override fun onReconnected(call: Call) {
-//        Log.d(TAG, "onReconnected")
-//        logEvent("onReconnected")
-//    }
-//
-//    override fun onDisconnected(call: Call, callException: CallException?) {
-//        Log.d(TAG, "onDisconnected")
-//        logEvent("onDisconnected")
-//    }
-    //endregion
 }
