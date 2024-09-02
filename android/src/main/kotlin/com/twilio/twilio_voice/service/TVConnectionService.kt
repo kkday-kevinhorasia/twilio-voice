@@ -1,6 +1,7 @@
 package com.twilio.twilio_voice.service
 
 import android.annotation.SuppressLint
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
-import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
@@ -46,6 +46,7 @@ import com.twilio.twilio_voice.types.TelecomManagerExtension.registerPhoneAccoun
 import com.twilio.twilio_voice.types.ValueBundleChanged
 import com.twilio.voice.*
 import com.twilio.voice.Call
+
 
 class TVConnectionService : ConnectionService() {
 
@@ -365,7 +366,7 @@ class TVConnectionService : ConnectionService() {
                             return@let
                         }
 
-                    if (!isAppVisible()) {
+                    if (!isAppVisible() && !isDeviceLocked()) {
                         val callInvite =
                             it.getParcelableExtraSafe<CallInvite>(EXTRA_INCOMING_CALL_INVITE)
                                 ?: run {
@@ -930,7 +931,7 @@ class TVConnectionService : ConnectionService() {
 
         val intent = Intent(
             applicationContext,
-            TVConnectionService::class.java
+            TVConnectionService::class.java,
         ).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -938,12 +939,12 @@ class TVConnectionService : ConnectionService() {
             applicationContext,
             0,
             intent,
-            flag
+            flag,
         )
 
         val acceptCallIntent = Intent(
             applicationContext,
-            TVConnectionService::class.java
+            TVConnectionService::class.java,
         ).apply {
             action = ACTION_ANSWER
             putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
@@ -953,17 +954,17 @@ class TVConnectionService : ConnectionService() {
             applicationContext,
             1,
             acceptCallIntent,
-            flag
+            flag,
         )
         val acceptCallAction = Notification.Action.Builder(
             Icon.createWithResource(applicationContext, R.drawable.ic_microphone),
             "Accept",
-            acceptCallPendingIntent
+            acceptCallPendingIntent,
         ).build()
 
         val declineCallIntent = Intent(
             applicationContext,
-            TVConnectionService::class.java
+            TVConnectionService::class.java,
         ).apply {
             action = ACTION_HANGUP
             putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
@@ -973,12 +974,12 @@ class TVConnectionService : ConnectionService() {
             applicationContext,
             2,
             declineCallIntent,
-            flag
+            flag,
         )
         val declineCallAction = Notification.Action.Builder(
             Icon.createWithResource(applicationContext, R.drawable.ic_microphone),
             "Decline",
-            declineCallPendingIntent
+            declineCallPendingIntent,
         ).build()
 
         return Notification.Builder(this, channel.id).apply {
@@ -1025,8 +1026,9 @@ class TVConnectionService : ConnectionService() {
         try {
             stopRingtone()
             stopForeground(SERVICE_TYPE_MICROPHONE)
-            // Some android devices need to cancel notification twice to completely remove it
             cancelNotification()
+            // Some android devices need to cancel notification twice to completely remove it
+            stopForeground(SERVICE_TYPE_MICROPHONE)
             cancelNotification()
         } catch (e: java.lang.Exception) {
             Log.w(TAG, "[VoiceConnectionService] can't stop foreground service :$e")
@@ -1043,6 +1045,17 @@ class TVConnectionService : ConnectionService() {
             .lifecycle
             .currentState
             .isAtLeast(Lifecycle.State.STARTED)
+    }
+
+    /**
+     * Check if device is locked
+     *
+     * @return **`true`** if device is locked, **`false`** otherwise
+     */
+    private fun isDeviceLocked(): Boolean {
+        val keyboardManager: KeyguardManager =
+            applicationContext.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        return keyboardManager.isKeyguardLocked;
     }
 
     /**
