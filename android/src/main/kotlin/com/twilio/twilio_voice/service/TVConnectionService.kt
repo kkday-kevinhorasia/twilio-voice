@@ -9,9 +9,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
+import android.media.AudioAttributes
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.telecom.*
 import android.util.Log
 import androidx.lifecycle.Lifecycle
@@ -42,6 +48,9 @@ import com.twilio.voice.*
 import com.twilio.voice.Call
 
 class TVConnectionService : ConnectionService() {
+
+    private var ringtone: Ringtone? = null
+    private var vibrator: Vibrator? = null
 
     companion object {
         val TAG = "TwilioVoiceConnectionService"
@@ -189,8 +198,13 @@ class TVConnectionService : ConnectionService() {
         fun getActiveCallHandle(): String? {
             if (!hasActiveCalls()) return null
             return activeConnections.entries.firstOrNull { it.value.state == Connection.STATE_ACTIVE }?.key
-                    ?: activeConnections.entries.firstOrNull { it.value.state == Connection.STATE_HOLDING }?.key
-                    ?: activeConnections.entries.firstOrNull { arrayListOf(Connection.STATE_RINGING, Connection.STATE_DIALING).contains(it.value.state) }?.key
+                ?: activeConnections.entries.firstOrNull { it.value.state == Connection.STATE_HOLDING }?.key
+                ?: activeConnections.entries.firstOrNull {
+                    arrayListOf(
+                        Connection.STATE_RINGING,
+                        Connection.STATE_DIALING
+                    ).contains(it.value.state)
+                }?.key
         }
 
         fun getIncomingCallHandle(): String? {
@@ -202,7 +216,6 @@ class TVConnectionService : ConnectionService() {
             return activeConnections[callSid]
         }
     }
-
 
     private fun stopSelfSafe(): Boolean {
         if (!hasActiveCalls()) {
@@ -221,17 +234,27 @@ class TVConnectionService : ConnectionService() {
         intent?.let {
             when (it.action) {
                 ACTION_SEND_DIGITS -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_SEND_DIGITS is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_SEND_DIGITS is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
                     val digits = it.getStringExtra(EXTRA_DIGITS) ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_SEND_DIGITS is missing String EXTRA_DIGITS")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: ACTION_SEND_DIGITS is missing String EXTRA_DIGITS"
+                        )
                         return@let
                     }
 
                     getConnection(callHandle)?.sendDigits(digits) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_SEND_DIGITS] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_SEND_DIGITS] could not find connection for callHandle: $callHandle"
+                        )
                     }
                 }
 
@@ -239,39 +262,61 @@ class TVConnectionService : ConnectionService() {
                     // Load CancelledCallInvite class loader
                     // See: https://github.com/twilio/voice-quickstart-android/issues/561#issuecomment-1678613170
                     it.setExtrasClassLoader(CallInvite::class.java.classLoader)
-                    val cancelledCallInvite = it.getParcelableExtraSafe<CancelledCallInvite>(EXTRA_CANCEL_CALL_INVITE) ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_CANCEL_CALL_INVITE is missing parcelable EXTRA_CANCEL_CALL_INVITE")
-                        return@let
-                    }
+                    val cancelledCallInvite =
+                        it.getParcelableExtraSafe<CancelledCallInvite>(EXTRA_CANCEL_CALL_INVITE)
+                            ?: run {
+                                Log.e(
+                                    TAG,
+                                    "onStartCommand: ACTION_CANCEL_CALL_INVITE is missing parcelable EXTRA_CANCEL_CALL_INVITE"
+                                )
+                                return@let
+                            }
 
                     val callHandle = cancelledCallInvite.callSid
                     getConnection(callHandle)?.onAbort() ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_CANCEL_CALL_INVITE] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_CANCEL_CALL_INVITE] could not find connection for callHandle: $callHandle"
+                        )
                     }
                 }
 
                 ACTION_INCOMING_CALL -> {
                     // Load CallInvite class loader & get callInvite
-                    val callInvite = it.getParcelableExtraSafe<CallInvite>(EXTRA_INCOMING_CALL_INVITE) ?: run {
-                        Log.e(TAG, "onStartCommand: 'ACTION_INCOMING_CALL' is missing parcelable 'EXTRA_INCOMING_CALL_INVITE'")
-                        return@let
-                    }
+                    val callInvite =
+                        it.getParcelableExtraSafe<CallInvite>(EXTRA_INCOMING_CALL_INVITE) ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: 'ACTION_INCOMING_CALL' is missing parcelable 'EXTRA_INCOMING_CALL_INVITE'"
+                            )
+                            return@let
+                        }
 
                     val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
                     if (!telecomManager.canReadPhoneState(applicationContext)) {
-                        Log.e(TAG, "onCallInvite: Permission to read phone state not granted or requested.")
+                        Log.e(
+                            TAG,
+                            "onCallInvite: Permission to read phone state not granted or requested."
+                        )
                         callInvite.reject(applicationContext)
                         return@let
                     }
 
-                    val phoneAccountHandle = telecomManager.getPhoneAccountHandle(applicationContext)
+                    val phoneAccountHandle =
+                        telecomManager.getPhoneAccountHandle(applicationContext)
                     val phoneAccount = telecomManager.getPhoneAccount(phoneAccountHandle)
-                    if(phoneAccount == null) {
-                        Log.e(TAG, "onStartCommand: PhoneAccount is null, make sure to register one with `registerPhoneAccount()`")
+                    if (phoneAccount == null) {
+                        Log.e(
+                            TAG,
+                            "onStartCommand: PhoneAccount is null, make sure to register one with `registerPhoneAccount()`"
+                        )
                         return@let
                     }
-                    if(!phoneAccount.isEnabled) {
-                        Log.e(TAG, "onStartCommand: PhoneAccount is not enabled, prompt the user to enable the phone account by opening settings with `openPhoneAccountSettings()`")
+                    if (!phoneAccount.isEnabled) {
+                        Log.e(
+                            TAG,
+                            "onStartCommand: PhoneAccount is not enabled, prompt the user to enable the phone account by opening settings with `openPhoneAccountSettings()`"
+                        )
                         return@let
                     }
 
@@ -299,7 +344,10 @@ class TVConnectionService : ConnectionService() {
                         putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, phoneAccountHandle)
 
                         if (callInvite.customParameters.containsKey("_TWI_SUBJECT")) {
-                            putString(TelecomManager.EXTRA_CALL_SUBJECT, callInvite.customParameters["_TWI_SUBJECT"])
+                            putString(
+                                TelecomManager.EXTRA_CALL_SUBJECT,
+                                callInvite.customParameters["_TWI_SUBJECT"]
+                            )
                         }
                     }
 
@@ -308,34 +356,76 @@ class TVConnectionService : ConnectionService() {
                 }
 
                 ACTION_ANSWER -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getIncomingCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_ANSWER is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getIncomingCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_ANSWER is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
 
-                    val connection = getConnection(callHandle) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_ANSWER] could not find connection for callHandle: $callHandle")
-                        return@let
-                    }
+                    if (!isAppVisible()) {
+                        val callInvite =
+                            it.getParcelableExtraSafe<CallInvite>(EXTRA_INCOMING_CALL_INVITE)
+                                ?: run {
+                                    Log.e(
+                                        TAG,
+                                        "onStartCommand: 'ACTION_ANSWER' is missing parcelable 'EXTRA_INCOMING_CALL_INVITE'"
+                                    )
+                                    return@let
+                                }
 
-                    if(connection is TVCallInviteConnection) {
-                        connection.acceptInvite()
+                        // Open app
+                        Intent().apply {
+                            action = "${applicationContext.packageName}.intent.action.INCOMING_CALL"
+                            putExtra("EXTRA_CALL_FROM", callInvite.from)
+                            addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK
+                                        or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        or Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+                                        or Intent.FLAG_ACTIVITY_NO_HISTORY
+                            )
+                            applicationContext.startActivity(this)
+                        }
                     } else {
-                        Log.e(TAG, "onStartCommand: [ACTION_ANSWER] could not find connection for callHandle: $callHandle")
-                    }
+                        val connection = getConnection(callHandle) ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: [ACTION_ANSWER] could not find connection for callHandle: $callHandle"
+                            )
+                            return@let
+                        }
 
-                    // Close notification
-                    stopForegroundService()
+                        if (connection is TVCallInviteConnection) {
+                            connection.acceptInvite()
+                        } else {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: [ACTION_ANSWER] could not find connection for callHandle: $callHandle"
+                            )
+                        }
+
+                        // Close notification
+                        stopForegroundService()
+                    }
                 }
 
                 ACTION_HANGUP -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_HANGUP is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_HANGUP is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
 
                     getConnection(callHandle)?.disconnect() ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_HANGUP] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_HANGUP] could not find connection for callHandle: $callHandle"
+                        )
                     }
 
                     // Close notification
@@ -345,15 +435,24 @@ class TVConnectionService : ConnectionService() {
                 ACTION_PLACE_OUTGOING_CALL -> {
                     // check required EXTRA_TOKEN, EXTRA_TO, EXTRA_FROM
                     val token = it.getStringExtra(EXTRA_TOKEN) ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TOKEN")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TOKEN"
+                        )
                         return@let
                     }
                     val to = it.getStringExtra(EXTRA_TO) ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TO")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TO"
+                        )
                         return@let
                     }
                     val from = it.getStringExtra(EXTRA_FROM) ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_FROM")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_FROM"
+                        )
                         return@let
                     }
 
@@ -381,7 +480,8 @@ class TVConnectionService : ConnectionService() {
                     }
 
                     val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
-                    val phoneAccountHandle = telecomManager.getPhoneAccountHandle(applicationContext)
+                    val phoneAccountHandle =
+                        telecomManager.getPhoneAccountHandle(applicationContext)
 
                     if (!telecomManager.canReadPhoneState(applicationContext)) {
                         Log.e(TAG, "onStartCommand: Missing READ_PHONE_STATE permission")
@@ -389,27 +489,46 @@ class TVConnectionService : ConnectionService() {
                     }
 
                     val phoneAccount = telecomManager.getPhoneAccount(phoneAccountHandle)
-                    if(phoneAccount == null) {
-                        Log.e(TAG, "onStartCommand: PhoneAccount is null, make sure to register one with `registerPhoneAccount()`")
+                    if (phoneAccount == null) {
+                        Log.e(
+                            TAG,
+                            "onStartCommand: PhoneAccount is null, make sure to register one with `registerPhoneAccount()`"
+                        )
                         return@let
                     }
-                    if(!phoneAccount.isEnabled) {
-                        Log.e(TAG, "onStartCommand: PhoneAccount is not enabled, prompt the user to enable the phone account by opening settings with `openPhoneAccountSettings()`")
+                    if (!phoneAccount.isEnabled) {
+                        Log.e(
+                            TAG,
+                            "onStartCommand: PhoneAccount is not enabled, prompt the user to enable the phone account by opening settings with `openPhoneAccountSettings()`"
+                        )
                         return@let
                     }
 
-                    if (!telecomManager.hasCallCapableAccount(applicationContext, phoneAccountHandle.componentName.className)) {
-                        Log.e(TAG, "onStartCommand: No registered phone account for PhoneHandle $phoneAccountHandle")
+                    if (!telecomManager.hasCallCapableAccount(
+                            applicationContext,
+                            phoneAccountHandle.componentName.className
+                        )
+                    ) {
+                        Log.e(
+                            TAG,
+                            "onStartCommand: No registered phone account for PhoneHandle $phoneAccountHandle"
+                        )
                         telecomManager.registerPhoneAccount(applicationContext, phoneAccountHandle)
                     }
 
                     if (!applicationContext.hasCallPhonePermission()) {
-                        Log.e(TAG, "onStartCommand: Missing CALL_PHONE permission, request permission with `requestCallPhonePermission()`")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: Missing CALL_PHONE permission, request permission with `requestCallPhonePermission()`"
+                        )
                         return@let
                     }
 
                     if (!applicationContext.hasManageOwnCallsPermission()) {
-                        Log.e(TAG, "onStartCommand: Missing MANAGE_OWN_CALLS permission, request permission with `requestManageOwnCallsPermission()`")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: Missing MANAGE_OWN_CALLS permission, request permission with `requestManageOwnCallsPermission()`"
+                        )
                         return@let
                     }
 
@@ -424,49 +543,77 @@ class TVConnectionService : ConnectionService() {
                 }
 
                 ACTION_TOGGLE_BLUETOOTH -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_TOGGLE_BLUETOOTH is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_TOGGLE_BLUETOOTH is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
                     val bluetoothState = it.getBooleanExtra(EXTRA_BLUETOOTH_STATE, false)
 
                     getConnection(callHandle)?.toggleBluetooth(bluetoothState) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_TOGGLE_BLUETOOTH] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_TOGGLE_BLUETOOTH] could not find connection for callHandle: $callHandle"
+                        )
                     }
                 }
 
                 ACTION_TOGGLE_HOLD -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_TOGGLE_HOLD is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_TOGGLE_HOLD is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
                     val holdState = it.getBooleanExtra(EXTRA_HOLD_STATE, false)
 
                     getConnection(callHandle)?.toggleHold(holdState) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_TOGGLE_HOLD] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_TOGGLE_HOLD] could not find connection for callHandle: $callHandle"
+                        )
                     }
                 }
 
                 ACTION_TOGGLE_MUTE -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_TOGGLE_MUTE is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_TOGGLE_MUTE is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
                     val muteState = it.getBooleanExtra(EXTRA_MUTE_STATE, false)
 
                     getConnection(callHandle)?.toggleMute(muteState) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_TOGGLE_MUTE] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_TOGGLE_MUTE] could not find connection for callHandle: $callHandle"
+                        )
                     }
                 }
 
                 ACTION_TOGGLE_SPEAKER -> {
-                    val callHandle = it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
-                        Log.e(TAG, "onStartCommand: ACTION_TOGGLE_SPEAKER is missing String EXTRA_CALL_HANDLE")
-                        return@let
-                    }
+                    val callHandle =
+                        it.getStringExtra(EXTRA_CALL_HANDLE) ?: getActiveCallHandle() ?: run {
+                            Log.e(
+                                TAG,
+                                "onStartCommand: ACTION_TOGGLE_SPEAKER is missing String EXTRA_CALL_HANDLE"
+                            )
+                            return@let
+                        }
                     val speakerState = it.getBooleanExtra(EXTRA_SPEAKER_STATE, false)
                     getConnection(callHandle)?.toggleSpeaker(speakerState) ?: run {
-                        Log.e(TAG, "onStartCommand: [ACTION_TOGGLE_SPEAKER] could not find connection for callHandle: $callHandle")
+                        Log.e(
+                            TAG,
+                            "onStartCommand: [ACTION_TOGGLE_SPEAKER] could not find connection for callHandle: $callHandle"
+                        )
                     }
                 }
 
@@ -486,7 +633,10 @@ class TVConnectionService : ConnectionService() {
     }
     //endregion
 
-    override fun onCreateIncomingConnection(connectionManagerPhoneAccount: PhoneAccountHandle?, request: ConnectionRequest?): Connection {
+    override fun onCreateIncomingConnection(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ): Connection {
         assert(request != null) { "ConnectionRequest cannot be null" }
         assert(connectionManagerPhoneAccount != null) { "ConnectionManagerPhoneAccount cannot be null" }
 
@@ -495,13 +645,19 @@ class TVConnectionService : ConnectionService() {
 
         val extras = request?.extras
         val myBundle: Bundle = extras?.getBundle(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS) ?: run {
-            Log.e(TAG, "onCreateIncomingConnection: request is missing Bundle EXTRA_INCOMING_CALL_EXTRAS")
+            Log.e(
+                TAG,
+                "onCreateIncomingConnection: request is missing Bundle EXTRA_INCOMING_CALL_EXTRAS"
+            )
             throw Exception("onCreateIncomingConnection: request is missing Bundle EXTRA_INCOMING_CALL_EXTRAS");
         }
 
         myBundle.classLoader = CallInvite::class.java.classLoader
         val ci: CallInvite = myBundle.getParcelableSafe(EXTRA_INCOMING_CALL_INVITE) ?: run {
-            Log.e(TAG, "onCreateIncomingConnection: request is missing CallInvite EXTRA_INCOMING_CALL_INVITE")
+            Log.e(
+                TAG,
+                "onCreateIncomingConnection: request is missing CallInvite EXTRA_INCOMING_CALL_INVITE"
+            )
             throw Exception("onCreateIncomingConnection: request is missing CallInvite EXTRA_INCOMING_CALL_INVITE");
         }
 
@@ -525,23 +681,32 @@ class TVConnectionService : ConnectionService() {
         applyParameters(connection, callParams)
         connection.setRinging()
 
-        if (!isAppVisible()) {
-            // Start show notification
-            startForegroundService(ci)
+        // Start play ringtone and show notification
+        playRingtone()
+        startForegroundService(ci)
 
+        if (!isAppVisible()) {
             // Open app
             Intent().apply {
                 action = "${applicationContext.packageName}.intent.action.INCOMING_CALL"
                 putExtra("EXTRA_CALL_FROM", ci.from)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_NO_HISTORY)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                            or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            or Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+                            or Intent.FLAG_ACTIVITY_NO_HISTORY
+                )
                 applicationContext.startActivity(this)
             }
         }
-        
+
         return connection
     }
 
-    override fun onCreateOutgoingConnection(connectionManagerPhoneAccount: PhoneAccountHandle?, request: ConnectionRequest?): Connection {
+    override fun onCreateOutgoingConnection(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ): Connection {
         assert(request != null) { "ConnectionRequest cannot be null" }
         assert(connectionManagerPhoneAccount != null) { "ConnectionManagerPhoneAccount cannot be null" }
 
@@ -550,21 +715,33 @@ class TVConnectionService : ConnectionService() {
 
         val extras = request?.extras
         val myBundle: Bundle = extras?.getBundle(EXTRA_OUTGOING_PARAMS) ?: run {
-            Log.e(TAG, "onCreateOutgoingConnection: request is missing Bundle EXTRA_OUTGOING_PARAMS")
+            Log.e(
+                TAG,
+                "onCreateOutgoingConnection: request is missing Bundle EXTRA_OUTGOING_PARAMS"
+            )
             throw Exception("onCreateOutgoingConnection: request is missing Bundle EXTRA_OUTGOING_PARAMS");
         }
 
         // check required EXTRA_TOKEN, EXTRA_TO, EXTRA_FROM
         val token: String = myBundle.getString(EXTRA_TOKEN) ?: run {
-            Log.e(TAG, "onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TOKEN")
+            Log.e(
+                TAG,
+                "onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TOKEN"
+            )
             throw Exception("onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TOKEN");
         }
         val to = myBundle.getString(EXTRA_TO) ?: run {
-            Log.e(TAG, "onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TO")
+            Log.e(
+                TAG,
+                "onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TO"
+            )
             throw Exception("onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_TO");
         }
         val from = myBundle.getString(EXTRA_FROM) ?: run {
-            Log.e(TAG, "onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_FROM")
+            Log.e(
+                TAG,
+                "onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_FROM"
+            )
             throw Exception("onCreateOutgoingConnection: ACTION_PLACE_OUTGOING_CALL is missing String EXTRA_FROM");
         }
 
@@ -585,8 +762,8 @@ class TVConnectionService : ConnectionService() {
 
         // create connect options
         val connectOptions = ConnectOptions.Builder(token)
-                .params(params)
-                .build()
+            .params(params)
+            .build()
 
         // create outgoing connection
         val connection = TVCallConnection(applicationContext)
@@ -631,26 +808,31 @@ class TVConnectionService : ConnectionService() {
      * @param connection The connection to attach the listeners to.
      * @param callSid The call SID of the connection.
      */
-    private fun <T: TVCallConnection> attachCallEventListeners(connection: T, callSid: String) {
+    private fun <T : TVCallConnection> attachCallEventListeners(connection: T, callSid: String) {
 
-        val onAction: ValueBundleChanged<String> = ValueBundleChanged { event: String?, extra: Bundle? ->
-            sendBroadcastEvent(applicationContext, event ?: "", callSid, extra)
-        }
+        val onAction: ValueBundleChanged<String> =
+            ValueBundleChanged { event: String?, extra: Bundle? ->
+                sendBroadcastEvent(applicationContext, event ?: "", callSid, extra)
+            }
 
-        val onEvent: ValueBundleChanged<String> = ValueBundleChanged { event: String?, extra: Bundle? ->
-            sendBroadcastEvent(applicationContext, event ?: "", callSid, extra)
-            // This is a temporary solution since `isOnCall` returns true when there is an active ConnectionService, regardless of the source app. This also applies to SIM/Telecom calls.
-            sendBroadcastCallHandle(applicationContext, extra?.getString(TVBroadcastReceiver.EXTRA_CALL_HANDLE))
-            // Stop notification when call connect failed
-            if (TVNativeCallEvents.EVENT_CONNECT_FAILURE == event) {
-                stopForegroundService()
-                stopSelfSafe()
+        val onEvent: ValueBundleChanged<String> =
+            ValueBundleChanged { event: String?, extra: Bundle? ->
+                sendBroadcastEvent(applicationContext, event ?: "", callSid, extra)
+                // This is a temporary solution since `isOnCall` returns true when there is an active ConnectionService, regardless of the source app. This also applies to SIM/Telecom calls.
+                sendBroadcastCallHandle(
+                    applicationContext,
+                    extra?.getString(TVBroadcastReceiver.EXTRA_CALL_HANDLE)
+                )
+                // Stop notification when call connect failed
+                if (TVNativeCallEvents.EVENT_CONNECT_FAILURE == event) {
+                    stopForegroundService()
+                    stopSelfSafe()
+                }
+                // Stop notification when call is connected
+                if (TVNativeCallEvents.EVENT_CONNECTED == event) {
+                    stopForegroundService()
+                }
             }
-            // Stop notification when call is connected
-            if (TVNativeCallEvents.EVENT_CONNECTED == event) {
-                stopForegroundService()
-            }
-        }
         val onDisconnect: CompletionHandler<DisconnectCause> = CompletionHandler {
             if (activeConnections.containsKey(callSid)) {
                 activeConnections.remove(callSid)
@@ -673,16 +855,25 @@ class TVConnectionService : ConnectionService() {
      * @param connection The connection to apply the parameters to.
      * @param params The parameters to apply to the connection.
      */
-    private fun <T: TVCallConnection> applyParameters(connection: T, params: TVParameters) {
+    private fun <T : TVCallConnection> applyParameters(connection: T, params: TVParameters) {
         params.getExtra(TVParameters.PARAM_SUBJECT, null)?.let {
             connection.extras.putString(TelecomManager.EXTRA_CALL_SUBJECT, it)
         }
-        val name = if(connection.callDirection == CallDirection.OUTGOING) params.to else params.from
-        connection.setAddress(Uri.fromParts(PhoneAccount.SCHEME_TEL, name, null), TelecomManager.PRESENTATION_ALLOWED)
+        val name =
+            if (connection.callDirection == CallDirection.OUTGOING) params.to else params.from
+        connection.setAddress(
+            Uri.fromParts(PhoneAccount.SCHEME_TEL, name, null),
+            TelecomManager.PRESENTATION_ALLOWED
+        )
         connection.setCallerDisplayName(name, TelecomManager.PRESENTATION_ALLOWED)
     }
 
-    private fun sendBroadcastEvent(ctx: Context, event: String, callSid: String?, extras: Bundle? = null) {
+    private fun sendBroadcastEvent(
+        ctx: Context,
+        event: String,
+        callSid: String?,
+        extras: Bundle? = null
+    ) {
         Intent(ctx, TVBroadcastReceiver::class.java).apply {
             action = event
             putExtra(EXTRA_CALL_HANDLE, callSid)
@@ -700,13 +891,19 @@ class TVConnectionService : ConnectionService() {
         }
     }
 
-    override fun onCreateOutgoingConnectionFailed(connectionManagerPhoneAccount: PhoneAccountHandle?, request: ConnectionRequest?) {
+    override fun onCreateOutgoingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ) {
         super.onCreateOutgoingConnectionFailed(connectionManagerPhoneAccount, request)
         Log.d(TAG, "onCreateOutgoingConnectionFailed")
         stopForegroundService()
     }
 
-    override fun onCreateIncomingConnectionFailed(connectionManagerPhoneAccount: PhoneAccountHandle?, request: ConnectionRequest?) {
+    override fun onCreateIncomingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ) {
         super.onCreateIncomingConnectionFailed(connectionManagerPhoneAccount, request)
         Log.d(TAG, "onCreateIncomingConnectionFailed")
         stopForegroundService()
@@ -721,7 +918,8 @@ class TVConnectionService : ConnectionService() {
             description = descriptionText
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
-        val notificationManager: NotificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager: NotificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
         return channel
     }
@@ -731,8 +929,8 @@ class TVConnectionService : ConnectionService() {
         val flag = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
         val intent = Intent(
-                applicationContext,
-                TVConnectionService::class.java
+            applicationContext,
+            TVConnectionService::class.java
         ).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -744,8 +942,8 @@ class TVConnectionService : ConnectionService() {
         )
 
         val acceptCallIntent = Intent(
-                applicationContext,
-                TVConnectionService::class.java
+            applicationContext,
+            TVConnectionService::class.java
         ).apply {
             action = ACTION_ANSWER
             putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
@@ -764,23 +962,23 @@ class TVConnectionService : ConnectionService() {
         ).build()
 
         val declineCallIntent = Intent(
-                applicationContext,
-                TVConnectionService::class.java
+            applicationContext,
+            TVConnectionService::class.java
         ).apply {
             action = ACTION_HANGUP
             putExtra(EXTRA_INCOMING_CALL_INVITE, callInvite)
             putExtra(EXTRA_CALL_HANDLE, callInvite.callSid)
         }
         val declineCallPendingIntent = PendingIntent.getService(
-                applicationContext,
-                2,
-                declineCallIntent,
-                flag
+            applicationContext,
+            2,
+            declineCallIntent,
+            flag
         )
         val declineCallAction = Notification.Action.Builder(
-                Icon.createWithResource(applicationContext, R.drawable.ic_microphone),
-                "Decline",
-                declineCallPendingIntent
+            Icon.createWithResource(applicationContext, R.drawable.ic_microphone),
+            "Decline",
+            declineCallPendingIntent
         ).build()
 
         return Notification.Builder(this, channel.id).apply {
@@ -796,7 +994,8 @@ class TVConnectionService : ConnectionService() {
     }
 
     private fun cancelNotification() {
-        val notificationManager: NotificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager: NotificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(SERVICE_TYPE_MICROPHONE)
     }
 
@@ -807,7 +1006,11 @@ class TVConnectionService : ConnectionService() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 // Optional for Android +11, required for Android +14
-                startForeground(SERVICE_TYPE_MICROPHONE, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                startForeground(
+                    SERVICE_TYPE_MICROPHONE,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
             } else {
                 startForeground(SERVICE_TYPE_MICROPHONE, notification)
             }
@@ -820,17 +1023,88 @@ class TVConnectionService : ConnectionService() {
     private fun stopForegroundService() {
         Log.d(TAG, "[VoiceConnectionService] stopForegroundService")
         try {
+            stopRingtone()
             stopForeground(SERVICE_TYPE_MICROPHONE)
+            // Some android devices need to cancel notification twice to completely remove it
+            cancelNotification()
             cancelNotification()
         } catch (e: java.lang.Exception) {
             Log.w(TAG, "[VoiceConnectionService] can't stop foreground service :$e")
         }
     }
 
+    /**
+     * Check if app is in foreground or not
+     *
+     * @return **`true`** if app is in foreground, **`false`** otherwise
+     */
     private fun isAppVisible(): Boolean {
         return ProcessLifecycleOwner.get()
             .lifecycle
             .currentState
             .isAtLeast(Lifecycle.State.STARTED)
+    }
+
+    /**
+     * Play ringtone with or without vibration
+     *
+     * @param[vibrate] determine whether play ringtone with vibration or not
+     */
+    private fun playRingtone(vibrate: Boolean = true): Unit {
+        try {
+            // Ringtone
+            val ringtoneManager: RingtoneManager = RingtoneManager(applicationContext)
+            ringtoneManager.stopPreviousRingtone()
+
+            val ringtoneUri: Uri = RingtoneManager.getActualDefaultRingtoneUri(
+                applicationContext,
+                RingtoneManager.TYPE_RINGTONE,
+            )
+
+            ringtone = RingtoneManager.getRingtone(
+                applicationContext,
+                ringtoneUri,
+            )
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                ringtone?.isLooping = true
+            }
+            ringtone?.play();
+
+            // Vibration
+            if (vibrate) {
+                vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vibratorManager: VibratorManager =
+                        this.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                    vibratorManager.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    applicationContext.getSystemService(VIBRATOR_SERVICE) as Vibrator
+                }
+
+                if (vibrator?.hasVibrator() == true) {
+                    vibrator?.vibrate(
+                        VibrationEffect.createWaveform(
+                            longArrayOf(500, 500, 500),
+                            1,
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Stop ringtone and vibration
+     */
+    private fun stopRingtone(): Unit {
+        try {
+            ringtone?.stop()
+            vibrator?.cancel()
+        } catch (e: Exception) {
+            e.printStackTrace();
+        }
     }
 }
