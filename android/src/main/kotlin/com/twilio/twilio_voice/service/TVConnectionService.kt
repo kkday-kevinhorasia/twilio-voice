@@ -280,6 +280,9 @@ class TVConnectionService : ConnectionService() {
                             "onStartCommand: [ACTION_CANCEL_CALL_INVITE] could not find connection for callHandle: $callHandle"
                         )
                     }
+
+                    // Close notification
+                    stopForegroundService()
                 }
 
                 ACTION_INCOMING_CALL -> {
