@@ -10,7 +10,7 @@ class StorageImpl(ctx: Context) : Storage {
 
     private val kDefaultCaller: String = "defaultCaller"
     private val kRejectOnNoPermissions: String = "rejectOnNoPermissions"
-    private val kShowNotifications: String = "show-notifications"
+    private val kShowNotifications: String = "showNotifications"
 
     override var defaultCaller
         get() = prefs.getString(kDefaultCaller, null)

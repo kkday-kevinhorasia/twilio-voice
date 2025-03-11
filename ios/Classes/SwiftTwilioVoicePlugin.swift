@@ -173,7 +173,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
             let isBluetoothOn: Bool = isBluetoothOn();
             result(isBluetoothOn);
         } 
-        if flutterCall.method == "call-sid" {
+        if flutterCall.method == "callSid" {
             result(self.call == nil ? nil : self.call!.sid);
             return;
         }
@@ -289,11 +289,11 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
             result(true)
             return
         } 
-        if flutterCall.method == "show-notifications" {
+        if flutterCall.method == "showNotifications" {
             guard let show = arguments["show"] as? Bool else { return }
-            let prefShow = UserDefaults.standard.optionalBool(forKey: "show-notifications") ?? true
+            let prefShow = UserDefaults.standard.optionalBool(forKey: "showNotifications") ?? true
             if show != prefShow {
-                UserDefaults.standard.setValue(show, forKey: "show-notifications")
+                UserDefaults.standard.setValue(show, forKey: "showNotifications")
             }
             result(true)
             return
@@ -566,7 +566,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin,  FlutterStreamHand
     }
     
     func showMissedCallNotification(from:String?, to:String?){
-        guard UserDefaults.standard.optionalBool(forKey: "show-notifications") ?? true else{return}
+        guard UserDefaults.standard.optionalBool(forKey: "showNotifications") ?? true else{return}
         let notificationCenter = UNUserNotificationCenter.current()
 
        

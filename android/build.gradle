@@ -2,15 +2,20 @@ group 'com.twilio.twilio_voice'
 version '1.0'
 
 buildscript {
-    ext.kotlin_version = '1.9.10'
+    ext {
+        kotlinVersion           = "1.9.10"
+        agpVersion              = "8.5.2"
+        twilioVoiceVersion      = "6.9.0"
+    }
+
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.5.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.android.tools.build:gradle:${agpVersion}"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}"
     }
 }
 
@@ -55,9 +60,9 @@ android {
 }
 
 dependencies {
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:$kotlin_version"))
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:${kotlinVersion}"))
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
-    implementation("com.twilio:voice-android:6.9.0")
+    implementation("com.twilio:voice-android:${twilioVoiceVersion}")
     implementation("com.google.firebase:firebase-messaging-ktx:24.1.0")
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.lifecycle:lifecycle-process:2.8.7'

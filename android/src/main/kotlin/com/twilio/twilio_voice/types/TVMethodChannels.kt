@@ -10,7 +10,7 @@ enum class TVMethodChannels(val method: String) {
     IS_BLUETOOTH_ON("isBluetoothOn"),
     TOGGLE_MUTE("toggleMute"),
     IS_MUTED("isMuted"),
-    CALL_SID("call-sid"),
+    CALL_SID("callSid"),
     IS_ON_CALL("isOnCall"),
     HOLD_CALL("holdCall"),
     IS_HOLDING("isHolding"),
