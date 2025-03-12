@@ -283,6 +283,9 @@ class TVConnectionService : ConnectionService() {
 
                     // Close notification
                     stopForegroundService()
+
+                    // Show missed call notification
+                    showMissedCallNotification(cancelledCallInvite)
                 }
 
                 ACTION_INCOMING_CALL -> {
@@ -398,7 +401,6 @@ class TVConnectionService : ConnectionService() {
                                 TAG,
                                 "onStartCommand: [ACTION_ANSWER] could not find connection for callHandle: $callHandle"
                             )
-                            return@let
                         }
 
                         if (connection is TVCallInviteConnection) {
@@ -1036,6 +1038,26 @@ class TVConnectionService : ConnectionService() {
         } catch (e: java.lang.Exception) {
             Log.w(TAG, "[VoiceConnectionService] can't stop foreground service :$e")
         }
+    }
+
+    private fun showMissedCallNotification(callInvite: CancelledCallInvite) {
+        val storage: Storage = StorageImpl(applicationContext)
+        if (!storage.showNotifications) {
+            return
+        }
+
+        val channel = getOrCreateChannel()
+
+        val notification = Notification.Builder(this, channel.id)
+            .setSmallIcon(R.drawable.ic_app_logo) // Use an appropriate missed call icon
+            .setContentTitle("Missed Call")
+            .setContentText(callInvite.from)
+            .setCategory(Notification.CATEGORY_CALL)
+            .build()
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationId = System.currentTimeMillis().toInt()
+        notificationManager.notify(notificationId, notification) // Unique ID for missed calls
     }
 
     /**

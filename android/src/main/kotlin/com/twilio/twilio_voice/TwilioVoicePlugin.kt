@@ -1703,6 +1703,7 @@ class TwilioVoicePlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamH
 
             TVNativeCallActions.ACTION_ABORT -> {
                 Log.d(TAG, "handleBroadcastIntent: Abort")
+                logEvent("", "Missed Call")
                 logEvent("", "Call Ended")
             }
 
