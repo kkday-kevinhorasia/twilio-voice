@@ -798,7 +798,21 @@ class TVConnectionService : ConnectionService() {
                 }
             }
         }
+
+        // Set call disconnected listener, removes connection from active connections when call is disconnected
+        val onCallInitializingDisconnectedListener: CompletionHandler<DisconnectCause> = CompletionHandler {
+            connection.twilioCall?.let {
+                if (activeConnections.containsKey(it.sid)) {
+                    activeConnections.remove(it.sid)
+                }
+                sendBroadcastEvent(applicationContext, TVBroadcastReceiver.ACTION_CALL_ENDED, it.sid ?: "", connection.extras)
+                stopForegroundService()
+                stopSelfSafe()
+            }
+        }
+
         connection.setOnCallStateListener(onCallStateListener)
+        connection.setOnCallDisconnected(onCallInitializingDisconnectedListener)
 
         // Setup connection UI parameters
         connection.setInitializing()
